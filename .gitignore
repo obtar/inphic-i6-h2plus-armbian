@@ -1,0 +1,8 @@
+output/
+cache/
+*.img
+*.img.xz
+*.img.sha
+*.img.sha256
+*.log
+.DS_Store

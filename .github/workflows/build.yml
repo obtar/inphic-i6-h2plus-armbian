@@ -1,0 +1,47 @@
+name: Build Dolphin-P1 Armbian
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build.yml'
+      - 'userpatches/**'
+      - 'README.md'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dolphin-p1-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Dolphin-P1 / Debian Trixie / Linux current
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Build Armbian image
+        uses: armbian/build@main
+        with:
+          armbian_token: ${{ secrets.GITHUB_TOKEN }}
+          armbian_board: dolphin-p1
+          armbian_target: build
+          armbian_branch: main
+          armbian_kernel_branch: current
+          armbian_release: trixie
+          armbian_ui: minimal
+          armbian_compress: sha,img,xz
+          armbian_release_title: 'Dolphin-P1 Armbian image'
+          armbian_release_body: |
+            Inphic H202A / Dolphin-P1, Allwinner H2+.
+
+            Clean eMMC layout:
+            - raw Allwinner SPL/U-Boot area before the first partition
+            - p1: 256 MiB FAT32 /boot
+            - p2: remaining space ext4 /
+
+            This image does not use the original Android/sunxi partition layout.
+          armbian_runner_clean: yes
