@@ -8,10 +8,12 @@ This repository is intentionally a **new implementation**. It does not preserve 
 
 - Allwinner H2+ / sun8i H3 family
 - 512 MiB DDR3
-- 8 GB-class eMMC on MMC2, 8-bit bus
+- Samsung 8 GB-class eMMC on MMC2, 8-bit bus, non-removable
 - 100 Mbps internal Ethernet PHY
-- HDMI
 - UART0 on PA4/PA5
+- PA15 power LED
+- 32.768 kHz RTC crystal confirmed present on the PCB
+- No RTC backup battery was identified; network time synchronization is therefore required after power loss
 - XR819 Wi-Fi exists on the original board but is disabled in this first clean mainline image
 
 The stock firmware reverse engineering established the U-Boot DRAM parameters as:
@@ -67,6 +69,24 @@ KERNEL  = current
 IMAGE   = minimal
 ```
 
+### Important board-discovery check
+
+The custom board file is currently stored at:
+
+```text
+userpatches/config/boards/dolphin-p1.csc
+```
+
+The official action definitely copies `custom/userpatches` into Armbian's `build/userpatches`, but the current project deliberately does **not** assume that `userpatches/config/boards/*.csc` is automatically part of Armbian's board-discovery path.
+
+The first CI run must therefore be checked for the board configuration message:
+
+```text
+Sourcing board configuration ... dolphin-p1.csc
+```
+
+If Armbian reports `Board 'dolphin-p1' not found`, the workflow must be changed to install the custom `.csc` into the board-discovery path before compilation. No unsupported `armbian_userpatches` input is assumed.
+
 ## U-Boot
 
 U-Boot uses the upstream H2+ LibreTech configuration as the hardware initialization baseline:
@@ -87,9 +107,87 @@ No hand-written U-Boot image is stored in this repository.
 sun8i-h2-plus-dolphin-p1.dtb
 ```
 
-and registers it in the Allwinner H3 DTB Makefile.
+Stage 1 intentionally enables only the hardware needed for the first headless bring-up plus hardware-backed diagnostics:
 
-The DT enables the eMMC on MMC2 and disables the unused SD/MMC1 Wi-Fi path.
+```text
+UART0
+MMC2 / eMMC
+Ethernet
+PA15 LED
+RTC
+USB PHY
+EHCI/OHCI 1 and 2 (USB-A host candidates)
+thermal
+watchdog
+```
+
+Stage 1 intentionally disables:
+
+```text
+MMC0 / SD
+MMC1 / XR819 Wi-Fi
+USB0 Linux OTG
+EHCI/OHCI 0 and 3
+HDMI
+Audio codec
+IR
+I2C0/I2C1
+crypto
+```
+
+The eMMC VCCQ voltage is not guessed. No `mmc-ddr-1_8v` is enabled until the physical VCCQ voltage is measured.
+
+The CPU fixed 1.2 V regulator from the earlier draft is also intentionally absent; it was not sufficiently justified by the available hardware evidence.
+
+## USB / FEL flashing
+
+The board's USB used for Allwinner FEL/Phoenix flashing must be treated separately from the Linux USB-A host ports.
+
+Before Linux starts:
+
+```text
+PC
+ │
+ └── USB OTG/data cable
+       │
+       ▼
+   H2+ BootROM USB0/FEL
+       │
+       ├── Phoenix
+       └── sunxi-fel
+```
+
+Therefore disabling the Linux node:
+
+```dts
+&usb_otg {
+    status = "disabled";
+};
+```
+
+does **not** disable BootROM FEL. Phoenix/sunxi-fel operates before the Linux kernel and its Device Tree are running.
+
+The two visible USB-A connectors are treated as Linux Host candidates, currently EHCI/OHCI 1 and 2. Their exact PCB controller mapping remains a bring-up item and should be confirmed with:
+
+```bash
+lsusb
+dmesg | grep -iE 'usb|ehci|ohci|phy'
+dmesg -w
+```
+
+Do not infer the physical USB-A routing solely from controller numbering.
+
+## RTC
+
+The PCB has a confirmed 32.768 kHz RTC crystal, so the Stage-1 DTS enables the RTC:
+
+```dts
+&rtc {
+    status = "okay";
+};
+```
+
+The board has no identified backup battery. The RTC therefore should not be treated as a persistent time source across power loss. Network time synchronization should correct the system clock after boot.
 
 ## First boot
 
@@ -99,13 +197,33 @@ After writing the generated `.img` to the eMMC, boot the board and use the seria
 115200 8N1
 ```
 
-The image intentionally does not embed a permanent `root:root` password. Complete Armbian's first-boot account/password setup on the serial/HDMI console.
+The image intentionally does not embed a permanent `root:root` password. Complete Armbian's first-boot account/password setup on the serial console.
+
+Initial bring-up target:
+
+```text
+U-Boot
+  ↓
+DRAM 576 MHz
+  ↓
+eMMC / MMC2
+  ↓
+Linux current
+  ↓
+rootfs
+  ↓
+eth0
+  ↓
+SSH
+```
 
 ## Flashing
 
 **Writing an image to an eMMC is destructive. Verify the target device before writing.**
 
-On Linux, after identifying the eMMC device:
+For the initial Allwinner recovery/flashing path, use the board's OTG/FEL USB connection with Phoenix or `sunxi-fel`. The Linux USB Host configuration is not required for entering FEL mode.
+
+After a Linux system can directly access the eMMC, a normal image write can be performed after identifying the correct device:
 
 ```bash
 sudo umount /dev/mmcblkX* 2>/dev/null || true
@@ -122,8 +240,8 @@ The first build intentionally prioritizes:
 2. eMMC boot
 3. serial console
 4. Ethernet
-5. HDMI
-6. USB
+5. RTC
+6. basic USB Host bring-up
 7. clean Debian/Armbian storage layout
 
-XR819 Wi-Fi and board-specific audio routing are not required for the first boot milestone and remain conservative in this initial implementation.
+HDMI, audio, IR, I2C peripherals, XR819 Wi-Fi, and board-specific USB routing are deferred until the minimal boot path is proven.

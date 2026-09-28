@@ -1,273 +1,145 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 94dcb3a59e536127a7c2ce65d4faf410700b4e95 Mon Sep 17 00:00:00 2001
 From: Dolphin-P1 <community@example.invalid>
-Date: Tue, 29 Sep 2026 00:00:00 +0800
-Subject: [PATCH] sun8i: add Inphic Dolphin-P1 H2+ device tree
+Date: Mon, 28 Sep 2026 21:56:20 +0000
+Subject: [PATCH] Add Dolphin-P1 DTS
 
----
- arch/arm/boot/dts/allwinner/Makefile                 |   1 +
- arch/arm/boot/dts/allwinner/sun8i-h2-plus-dolphin-p1.dts | 246 ++++++++++++++++++++++++++
- 2 files changed, 247 insertions(+)
- create mode 100644 arch/arm/boot/dts/allwinner/sun8i-h2-plus-dolphin-p1.dts
 
 diff --git a/arch/arm/boot/dts/allwinner/Makefile b/arch/arm/boot/dts/allwinner/Makefile
+index 917abdb..b92dca9 100644
 --- a/arch/arm/boot/dts/allwinner/Makefile
 +++ b/arch/arm/boot/dts/allwinner/Makefile
-@@ -3,6 +3,7 @@
- 
- dtb-$(CONFIG_MACH_SUN8I_H3) += \\
- 	sun8i-h2-plus-libretech-all-h3-cc.dtb \\
+@@ -1,5 +1,6 @@
+ dtb-$(CONFIG_MACH_SUN8I_H3) += \
+ 	sun8i-h2-plus-libretech-all-h3-cc.dtb \
 +	sun8i-h2-plus-dolphin-p1.dtb \
- 	sun8i-h2-plus-orangepi-r1.dtb \\
- 	sun8i-h2-plus-orangepi-zero.dtb \\
- 	sun8i-h3-bananapi-m2-plus.dtb \\
+ 	sun8i-h2-plus-orangepi-r1.dtb \
+ 	sun8i-h2-plus-orangepi-zero.dtb \
+ 	sun8i-h3-bananapi-m2-plus.dtb
 diff --git a/arch/arm/boot/dts/allwinner/sun8i-h2-plus-dolphin-p1.dts b/arch/arm/boot/dts/allwinner/sun8i-h2-plus-dolphin-p1.dts
 new file mode 100644
+index 0000000..699f9ff
 --- /dev/null
 +++ b/arch/arm/boot/dts/allwinner/sun8i-h2-plus-dolphin-p1.dts
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,122 @@
 +// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 +/*
 + * Device tree for Inphic H202A / Dolphin-P1.
 + *
-+ * Hardware established from the stock firmware:
-+ *   SoC:    Allwinner H2+ (sun8i H3 family)
-+ *   RAM:    512 MiB DDR3; U-Boot DRAM clock 576 MHz
-+ *   eMMC:   MMC2, 8-bit, non-removable
-+ *   UART:   UART0 on PA4/PA5
-+ *   Ethernet: internal 100M PHY, MII
-+ *   HDMI:   H3 HDMI controller
-+ *   Wi-Fi:  XR819 on MMC1, disabled for the clean mainline image
++ * Stage 1 target:
++ *   U-Boot -> eMMC -> Linux -> eth0 -> SSH
 + *
-+ * The image uses normal Armbian partitions. No vendor sunxi_mbr,
-+ * partitions= kernel argument, /dev/block/by-name links, or Android
-+ * fstab are used.
++ * Hardware evidence:
++ *   - Allwinner H2+ / sun8i H3 family
++ *   - 512 MiB RAM
++ *   - Samsung 8 GB-class eMMC on MMC2, 8-bit, non-removable
++ *   - UART0 on PA4/PA5
++ *   - 100M Ethernet using the internal PHY
++ *   - PA15 is the board power LED
++ *   - A 32.768 kHz RTC crystal is confirmed present on the PCB
++ *
++ * USB0/OTG is intentionally disabled in Linux Stage 1. The USB0
++ * physical interface is reserved for the Allwinner BootROM FEL path
++ * used by Phoenix/sunxi-fel before Linux starts. Disabling the Linux
++ * OTG driver does not disable BootROM FEL.
++ *
++ * The image uses normal Armbian partitions. No Android/vendor
++ * partition layout or partitions= kernel argument is used.
 + */
-+
 +/dts-v1/;
 +#include "sun8i-h3.dtsi"
 +#include "sunxi-common-regulators.dtsi"
 +#include <dt-bindings/gpio/gpio.h>
-+#include <dt-bindings/input/input.h>
-+
 +/ {
 +	model = "Inphic H202A Dolphin-P1 (Allwinner H2+)";
 +	compatible = "inphic,dolphin-p1", "allwinner,sun8i-h2-plus";
-+
 +	aliases {
 +		serial0 = &uart0;
 +		ethernet0 = &emac;
 +	};
-+
 +	chosen {
 +		stdout-path = "serial0:115200n8";
 +	};
-+
 +	memory@40000000 {
 +		device_type = "memory";
 +		reg = <0x40000000 0x20000000>;
 +	};
-+
-+	reg_vdd_cpux: vdd-cpux {
-+		compatible = "regulator-fixed";
-+		regulator-name = "vdd-cpux";
-+		regulator-min-microvolt = <1200000>;
-+		regulator-max-microvolt = <1200000>;
-+		regulator-boot-on;
-+		regulator-always-on;
-+	};
-+
 +	leds {
 +		compatible = "gpio-leds";
-+
 +		led-power {
 +			label = "dolphin:power";
-+			gpios = <&pio 0 15 GPIO_ACTIVE_LOW>;
++			gpios = <&pio 0 15 GPIO_ACTIVE_LOW>; /* PA15 */
 +			default-state = "on";
 +		};
-+
-+		led-standby {
-+			label = "dolphin:standby";
-+			gpios = <&r_pio 0 3 GPIO_ACTIVE_LOW>;
-+			default-state = "off";
-+		};
-+	};
-+
-+	keys {
-+		compatible = "gpio-keys";
-+
-+		recovery-key {
-+			label = "recovery";
-+			linux,code = <KEY_RESTART>;
-+			gpios = <&r_pio 0 4 GPIO_ACTIVE_LOW>;
-+			wakeup-source;
-+		};
-+	};
-+
-+	connector {
-+		compatible = "hdmi-connector";
-+		type = "a";
-+
-+		port {
-+			hdmi_con_in: endpoint {
-+				remote-endpoint = <&hdmi_out_con>;
-+			};
-+		};
 +	};
 +};
-+
-+&cpu0 {
-+	cpu-supply = <&reg_vdd_cpux>;
-+};
-+
-+&cpu1 {
-+	cpu-supply = <&reg_vdd_cpux>;
-+};
-+
-+&cpu2 {
-+	cpu-supply = <&reg_vdd_cpux>;
-+};
-+
-+&cpu3 {
-+	cpu-supply = <&reg_vdd_cpux>;
-+};
-+
-+&codec {
-+	allwinner,audio-routing =
-+		"Line Out", "LINEOUT",
-+		"MIC1", "Mic",
-+		"Mic", "MBIAS";
++/* UART0: debug console on PA4/PA5 */
++&uart0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart0_pa_pins>;
 +	status = "okay";
 +};
-+
-+&de {
++/* eMMC on MMC2, 8-bit, non-removable.
++ *
++ * VCCQ/1.8V DDR is deliberately not forced: the physical eMMC VCCQ
++ * voltage must be measured before enabling mmc-ddr-1_8v.
++ */
++&mmc2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&mmc2_8bit_pins>;
++	vmmc-supply = <&reg_vcc3v3>;
++	bus-width = <8>;
++	non-removable;
++	cap-mmc-hw-reset;
 +	status = "okay";
 +};
-+
-+&tcon0 {
-+	status = "okay";
-+};
-+
-+&hdmi {
-+	status = "okay";
-+};
-+
-+&hdmi_out {
-+	hdmi_out_con: endpoint {
-+		remote-endpoint = <&hdmi_con_in>;
-+	};
-+};
-+
++/* 100M Ethernet with the internal PHY */
 +&emac {
 +	phy-handle = <&int_mii_phy>;
 +	phy-mode = "mii";
 +	allwinner,leds-active-low;
 +	status = "okay";
 +};
-+
-+&mmc0 {
-+	status = "disabled";
-+};
-+
-+&mmc1 {
-+	status = "disabled";
-+};
-+
-+&mmc2 {
-+	pinctrl-names = "default";
-+	pinctrl-0 = <&mmc2_8bit_pins>;
-+	vmmc-supply = <&reg_vcc3v3>;
-+	vqmmc-supply = <&reg_vcc3v3>;
-+	bus-width = <8>;
-+	non-removable;
-+	cap-mmc-hw-reset;
-+	status = "okay";
-+};
-+
-+&uart0 {
-+	pinctrl-names = "default";
-+	pinctrl-0 = <&uart0_pa_pins>;
-+	status = "okay";
-+};
-+
-+&uart1 {
-+	status = "disabled";
-+};
-+
-+&uart2 {
-+	status = "disabled";
-+};
-+
-+&uart3 {
-+	status = "disabled";
-+};
-+
-+&i2c0 {
-+	status = "okay";
-+};
-+
-+&i2c1 {
-+	status = "okay";
-+};
-+
-+&ehci0 {
-+	status = "okay";
-+};
-+
-+&ohci0 {
-+	status = "okay";
-+};
-+
-+&ehci1 {
-+	status = "okay";
-+};
-+
-+&ohci1 {
-+	status = "okay";
-+};
-+
-+&ehci2 {
-+	status = "okay";
-+};
-+
-+&ohci2 {
-+	status = "okay";
-+};
-+
-+&ehci3 {
-+	status = "disabled";
-+};
-+
-+&ohci3 {
-+	status = "disabled";
-+};
-+
-+&usb_otg {
-+	dr_mode = "otg";
-+	status = "okay";
-+};
-+
++/* USB PHY shared by the USB host controllers */
 +&usbphy {
 +	status = "okay";
 +};
-+
-+&ir {
-+	pinctrl-names = "default";
-+	pinctrl-0 = <&r_ir_rx_pin>;
-+	status = "okay";
++/*
++ * The board has two visible USB-A connectors, but the PCB routing to
++ * H3 USB controller numbers has not yet been proven from a schematic.
++ * EHCI/OHCI 1 and 2 are therefore the Stage 1 host candidates.
++ */
++&ehci1 { status = "okay"; };
++&ohci1 { status = "okay"; };
++&ehci2 { status = "okay"; };
++&ohci2 { status = "okay"; };
++/* Unknown/internal USB controllers: defer until physical routing is confirmed. */
++&ehci0 { status = "disabled"; };
++&ohci0 { status = "disabled"; };
++&ehci3 { status = "disabled"; };
++&ohci3 { status = "disabled"; };
++/* USB0/OTG: reserved for BootROM FEL/Phoenix flashing; Linux OTG disabled. */
++&usb_otg {
++	status = "disabled";
 +};
-+
++/* Thermal + watchdog */
 +&ths {
 +	status = "okay";
 +};
-+
 +&wdt0 {
 +	status = "okay";
 +};
-+
++/* 32.768 kHz RTC crystal confirmed present on PCB; no backup battery. */
 +&rtc {
 +	status = "okay";
 +};
-+
-+&crypto {
-+	status = "okay";
-+};
++/* --- Stage 1 intentionally disabled --- */
++&mmc0 { status = "disabled"; }; /* no SD slot */
++&mmc1 { status = "disabled"; }; /* XR819 SDIO Wi-Fi, later */
++&de { status = "disabled"; };
++&tcon0 { status = "disabled"; };
++&hdmi { status = "disabled"; };
++&codec { status = "disabled"; };
++&ir { status = "disabled"; };
++&i2c0 { status = "disabled"; };
++&i2c1 { status = "disabled"; };
++&crypto { status = "disabled"; };
