@@ -47,6 +47,7 @@ jobs:
           install -Dm0644             config/boards/dolphin-p1.csc             build/config/boards/dolphin-p1.csc
 
           test -s build/config/boards/dolphin-p1.csc
+          echo "Armbian build framework: $(git -C build rev-parse --short HEAD)"
           echo "Installed board configuration:"
           readlink -f build/config/boards/dolphin-p1.csc
           grep -E '^(BOARD_NAME|BOARDFAMILY|BOOTCONFIG|BOOT_FDT_FILE)='             build/config/boards/dolphin-p1.csc
