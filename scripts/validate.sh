@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PATCH="$ROOT/userpatches/kernel/sunxi-current/0001-dolphin-p1-dts.patch"
-BOARD="$ROOT/userpatches/config/boards/dolphin-p1.csc"
+BOARD="$ROOT/config/boards/dolphin-p1.csc"
 CONF="$ROOT/userpatches/config-dolphin-p1.conf"
 
  echo "== 1. Files exist =="
