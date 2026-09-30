@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Free GitHub runner disk space
-        if: \${{ inputs.clean_runner }}
+        if: ${{ inputs.clean_runner }}
         uses: descriptinc/free-disk-space@1b4b157593c6801212a2ed488c205e0a810b4592
 
       - name: Checkout custom repository
@@ -129,8 +129,8 @@ jobs:
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: dolphin-p1-build-\${{ github.run_number }}
-          name: Dolphin-P1 Armbian build \${{ github.run_number }}
+          tag_name: dolphin-p1-build-${{ github.run_number }}
+          name: Dolphin-P1 Armbian build ${{ github.run_number }}
           prerelease: true
           generate_release_notes: false
           body: |
