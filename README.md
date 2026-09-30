@@ -58,7 +58,7 @@ armbian/build@main
 
 Run **Actions → Build Dolphin-P1 Armbian → Run workflow**.
 
-A push to `main` that changes `userpatches/` or the workflow also starts a build.
+A push to `master` that changes `config/`, `userpatches/`, `scripts/`, `README.md`, or the workflow also starts a build.
 
 The workflow uses:
 
@@ -69,23 +69,37 @@ KERNEL  = current
 IMAGE   = minimal
 ```
 
-### Important board-discovery check
+### Board configuration discovery
 
-The custom board file is currently stored at:
+The custom board definition is stored in the repository at:
 
 ```text
-userpatches/config/boards/dolphin-p1.csc
+config/boards/dolphin-p1.csc
 ```
 
-The official action definitely copies `custom/userpatches` into Armbian's `build/userpatches`, but the current project deliberately does **not** assume that `userpatches/config/boards/*.csc` is automatically part of Armbian's board-discovery path.
+Armbian discovers board definitions from the build framework's:
 
-The first CI run must therefore be checked for the board configuration message:
+```text
+build/config/boards/
+```
+
+The current `armbian/build@main` composite action copies `custom/userpatches` into `build/userpatches`, but does not copy a repository-level `config/boards/*.csc` into the framework.
+
+The workflow therefore deliberately prepares the Armbian build checkout first and installs:
+
+```text
+config/boards/dolphin-p1.csc
+        ↓
+build/config/boards/dolphin-p1.csc
+```
+
+The workflow prints the installed board configuration before invoking the official build action. The action's own framework checkout uses `clean: false`, so this custom board file is retained.
+
+The expected early build log contains the board configuration being sourced:
 
 ```text
 Sourcing board configuration ... dolphin-p1.csc
 ```
-
-If Armbian reports `Board 'dolphin-p1' not found`, the workflow must be changed to install the custom `.csc` into the board-discovery path before compilation. No unsupported `armbian_userpatches` input is assumed.
 
 ## U-Boot
 
