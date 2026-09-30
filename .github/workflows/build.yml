@@ -2,15 +2,12 @@ name: Build Dolphin-P1 Armbian
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/build.yml'
-      - 'config/**'
-      - 'userpatches/**'
-      - 'scripts/**'
-      - 'README.md'
+    inputs:
+      clean_runner:
+        description: 'Free GitHub runner disk space before building'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -25,55 +22,127 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout repository
+      - name: Free GitHub runner disk space
+        if: \${{ inputs.clean_runner }}
+        uses: descriptinc/free-disk-space@1b4b157593c6801212a2ed488c205e0a810b4592
+
+      - name: Checkout custom repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
-          clean: false
+          fetch-depth: 0
+          path: custom
 
-      - name: Prepare Armbian board configuration
+      - name: Checkout Armbian OS
+        uses: actions/checkout@v4
+        with:
+          repository: armbian/os
+          ref: main
+          fetch-depth: 1
+          path: os
+
+      - name: Checkout Armbian build framework
+        uses: actions/checkout@v4
+        with:
+          repository: armbian/build
+          ref: main
+          fetch-depth: 1
+          path: build
+
+      - name: Prepare custom board and userpatches
         shell: bash
         run: |
           set -euo pipefail
 
-          # armbian/build@main copies custom/userpatches into build/userpatches,
-          # but board .csc files are discovered from build/config/boards.
-          # Pre-create the framework checkout and install the custom board there;
-          # the official composite action then reuses this checkout (clean=false).
-          if [[ ! -d build/.git ]]; then
-            git clone --depth=1 --branch main https://github.com/armbian/build.git build
-          fi
+          mkdir -pv build/userpatches
+          rsync -av os/userpatches/. build/userpatches/
+          rsync -av custom/userpatches/. build/userpatches/
 
+          # Board .csc files are discovered from build/config/boards.
+          # Do this AFTER the Armbian framework checkout and BEFORE compile.sh.
           install -Dm0644 \
-            config/boards/dolphin-p1.csc \
+            custom/config/boards/dolphin-p1.csc \
             build/config/boards/dolphin-p1.csc
 
           test -s build/config/boards/dolphin-p1.csc
-          echo "Armbian build framework: $(git -C build rev-parse --short HEAD)"
-          echo "Installed board configuration:"
+
+          echo "Armbian build revision:"
+          git -C build rev-parse --short HEAD
+
+          echo "Board configuration:"
           readlink -f build/config/boards/dolphin-p1.csc
           grep -E '^(BOARD_NAME|BOARDFAMILY|BOOTCONFIG|BOOT_FDT_FILE)=' \
             build/config/boards/dolphin-p1.csc
 
-      - name: Build Armbian image
-        uses: armbian/build@main
+          echo "Custom DTS patch:"
+          ls -l custom/userpatches/kernel/sunxi-current/0001-dolphin-p1-dts.patch
+
+      - name: Install Armbian build requirements
+        working-directory: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo ./compile.sh requirements
+          sudo chown -R "$USER:$USER" .
+
+      - name: Build Dolphin-P1 image
+        working-directory: build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ./compile.sh build \
+            REVISION="26.8.9" \
+            BOARD="dolphin-p1" \
+            BRANCH="current" \
+            RELEASE="trixie" \
+            KERNEL_CONFIGURE="no" \
+            BUILD_DESKTOP="no" \
+            BUILD_MINIMAL="yes" \
+            INSTALL_HEADERS="no" \
+            EXTRAWIFI="no" \
+            KERNEL_BTF="no" \
+            COMPRESS_OUTPUTIMAGE="sha,img,xz" \
+            SHARE_LOG="yes" \
+            EXPERT="yes"
+
+      - name: Show build output
+        if: always()
+        shell: bash
+        run: |
+          echo "=== build/output/images ==="
+          find build/output/images -maxdepth 1 -type f -printf '%f %s bytes\n' 2>/dev/null || true
+          echo
+          echo "=== build/output ==="
+          find build/output -maxdepth 2 -type f | head -100 2>/dev/null || true
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
-          armbian_token: ${{ secrets.GITHUB_TOKEN }}
-          armbian_board: dolphin-p1
-          armbian_target: build
-          armbian_branch: main
-          armbian_kernel_branch: current
-          armbian_release: trixie
-          armbian_ui: minimal
-          armbian_compress: sha,img,xz
-          armbian_release_title: 'Dolphin-P1 Armbian image'
-          armbian_release_body: |
+          name: dolphin-p1-armbian
+          path: |
+            build/output/images/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dolphin-p1-build-\${{ github.run_number }}
+          name: Dolphin-P1 Armbian build \${{ github.run_number }}
+          prerelease: true
+          generate_release_notes: false
+          body: |
             Inphic H202A / Dolphin-P1, Allwinner H2+.
 
-            Clean eMMC layout:
-            - raw Allwinner SPL/U-Boot area before the first partition
-            - p1: 256 MiB FAT32 /boot
-            - p2: remaining space ext4 /
+            - Debian Trixie
+            - Linux current
+            - Minimal CLI
+            - Clean eMMC layout
+            - Custom Dolphin-P1 DTB
+            - No original Android/vendor partition layout
 
-            This image does not use the original Android/sunxi partition layout.
-          armbian_runner_clean: yes
+            This is a manually triggered development build.
+          files: |
+            build/output/images/*
