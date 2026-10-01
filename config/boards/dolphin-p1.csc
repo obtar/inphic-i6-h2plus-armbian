@@ -55,3 +55,17 @@ function post_config_uboot_target__dolphin_p1_dram() {
     run_host_command_logged scripts/config --enable CONFIG_DRAM_ODT_EN
     run_host_command_logged scripts/config --set-val CONFIG_MMC_SUNXI_SLOT_EXTRA "2"
 }
+
+# Export the exact U-Boot binary produced by this build as a release artifact.
+function pre_package_uboot_image__dolphin_p1_export_fel_uboot() {
+    local src="${uboottempdir}/usr/lib/${uboot_name}/u-boot-sunxi-with-spl.bin"
+    local dst="${SRC}/output/images/u-boot-sunxi-with-spl.bin"
+
+    if [[ ! -f "${src}" ]]; then
+        exit_with_error "Dolphin-P1 U-Boot artifact missing" "${src}"
+    fi
+
+    mkdir -p "${SRC}/output/images"
+    run_host_command_logged install -Dm0644 "${src}" "${dst}"
+    display_alert "Dolphin-P1 FEL U-Boot exported" "${dst}" "info"
+}
