@@ -338,7 +338,7 @@ Before any destructive operation, use U-Boot:
 
 and identify the actual eMMC device.
 
-The Fastboot MMC target is currently configured as U-Boot MMC device `2`, matching the existing `CONFIG_MMC_SUNXI_SLOT_EXTRA=2` assumption. This is a build-time default, not a substitute for checking the actual device with U-Boot.
+The Fastboot MMC target is currently configured as U-Boot MMC device `1`, matching the current upstream U-Boot sunxi Kconfig rule for `CONFIG_MMC_SUNXI_SLOT_EXTRA=2`. This is a build-time default, not a substitute for checking the actual device with U-Boot.
 
 ### Planned recovery flow
 
