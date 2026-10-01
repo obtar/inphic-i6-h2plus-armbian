@@ -1,9 +1,6 @@
 name: Build Dolphin-P1 Armbian
 
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
     inputs:
       clean_runner:
@@ -21,7 +18,6 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-once]') }}
     name: Dolphin-P1 / Debian Trixie / Linux current
     runs-on: ubuntu-24.04
 
@@ -109,11 +105,16 @@ jobs:
             SHARE_LOG="yes" \
             EXPERT="yes"
 
-      - name: Export U-Boot and checksums
+      - name: Verify U-Boot artifact and checksums
         shell: bash
         run: |
           set -euo pipefail
-          bash custom/scripts/publish-uboot.sh build
+          test -s build/output/images/u-boot-sunxi-with-spl.bin
+          file build/output/images/u-boot-sunxi-with-spl.bin
+          (
+            cd build/output/images
+            sha256sum * > sha256sums.txt
+          )
 
       - name: Show build output
         if: always()
