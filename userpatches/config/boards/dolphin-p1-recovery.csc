@@ -38,6 +38,14 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
     run_host_command_logged scripts/config --enable CONFIG_CMD_GPT
     run_host_command_logged scripts/config --enable CONFIG_CMD_PART
 
+    # H2+ uses the Allwinner MUSB OTG controller for USB peripheral mode.
+    # The base LibreTech defconfig enables EHCI/OHCI host support but not
+    # the MUSB gadget backend, so explicitly enable the controller here.
+    run_host_command_logged scripts/config --enable CONFIG_USB_MUSB_HDRC
+    run_host_command_logged scripts/config --enable CONFIG_USB_MUSB_GADGET
+    run_host_command_logged scripts/config --enable CONFIG_USB_MUSB_SUNXI
+    run_host_command_logged scripts/config --enable CONFIG_MUSB_PIO_ONLY
+
     # USB host/device framework and USB Mass Storage gadget (UMS).
     run_host_command_logged scripts/config --enable CONFIG_CMD_USB
     run_host_command_logged scripts/config --enable CONFIG_CMD_USB_MASS_STORAGE
