@@ -11,6 +11,7 @@ BOARDFAMILY="sun8i"
 BOOTCONFIG="libretech_all_h3_cc_h2_plus_defconfig"
 BOOT_FDT_FILE="allwinner/sun8i-h2-plus-dolphin-p1.dtb"
 UBOOT_TARGET_MAP=";;u-boot-sunxi-with-spl.bin"
+KERNEL_TARGET="current"
 
 # Keep this target bootloader-only. It is not a second Linux board.
 BUILD_MINIMAL="yes"
