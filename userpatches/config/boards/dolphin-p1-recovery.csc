@@ -12,6 +12,7 @@ BOOTCONFIG="libretech_all_h3_cc_h2_plus_defconfig"
 BOOT_FDT_FILE="allwinner/sun8i-h2-plus-dolphin-p1.dtb"
 UBOOT_TARGET_MAP=";;u-boot-sunxi-with-spl.bin"
 KERNEL_TARGET="current"
+BOOTDELAY="0"
 
 # Keep this target bootloader-only. It is not a second Linux board.
 BUILD_MINIMAL="yes"
@@ -41,10 +42,11 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
     # RAM-only recovery: autoboot directly into USB Mass Storage.
     # Allwinner FEL loads and executes this U-Boot entirely from RAM.
     # With MMC_SUNXI_SLOT_EXTRA=2, the internal eMMC is U-Boot mmc 1.
-    # BOOTDELAY=0 still permits a UART keypress to interrupt autoboot.
+    # BOOTDELAY=0 is supplied as a board variable above; Armbian applies it
+    # using its U-Boot configuration path and also enables the zero-delay check.
+    # A UART keypress can therefore still interrupt autoboot.
     run_host_command_logged scripts/config --enable CONFIG_AUTOBOOT
     run_host_command_logged scripts/config --enable CONFIG_USE_BOOTCOMMAND
-    run_host_command_logged scripts/config --set-val CONFIG_BOOTDELAY "0"
     run_host_command_logged scripts/config --set-str CONFIG_BOOTCOMMAND "ums 0 mmc 1"
 
     # H2+ uses the Allwinner MUSB OTG controller for USB peripheral mode.
