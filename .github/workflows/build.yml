@@ -59,16 +59,12 @@ jobs:
 
           # Board .csc files are discovered from build/config/boards.
           # Do this AFTER the Armbian framework checkout and BEFORE compile.sh.
-          install -Dm0644 \
-            custom/config/boards/dolphin-p1.csc \
-            build/config/boards/dolphin-p1.csc
-
-          test -s build/config/boards/dolphin-p1.csc
-
           echo "Armbian build revision:"
           git -C build rev-parse --short HEAD
 
+          test -s build/userpatches/config/boards/dolphin-p1.csc
           echo "Board configuration:"
+          echo "build/userpatches/config/boards/dolphin-p1.csc"
           readlink -f build/config/boards/dolphin-p1.csc
           grep -E '^(BOARD_NAME|BOARDFAMILY|BOOTCONFIG|BOOT_FDT_FILE)=' \
             build/config/boards/dolphin-p1.csc
