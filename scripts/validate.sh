@@ -60,6 +60,9 @@ for symbol in \
     CONFIG_USB_FUNCTION_FASTBOOT \
     CONFIG_CMD_FASTBOOT \
     CONFIG_FASTBOOT_FLASH \
+    CONFIG_FASTBOOT_FLASH_MMC \
+    CONFIG_FASTBOOT_MMC_USER_SUPPORT \
+    CONFIG_FASTBOOT_MMC_BOOT_SUPPORT \
     CONFIG_FASTBOOT_FLASH_MMC_DEV \
     CONFIG_CMD_NET \
     CONFIG_CMD_DHCP \
@@ -72,7 +75,7 @@ for symbol in \
     CONFIG_LED_GPIO; do
     grep -q "$symbol" "$RECOVERY_BOARD"
 done
-grep -q 'CONFIG_FASTBOOT_FLASH_MMC_DEV "2"' "$RECOVERY_BOARD"
+grep -q 'CONFIG_FASTBOOT_FLASH_MMC_DEV "1"' "$RECOVERY_BOARD"
 grep -q 'u-boot-dolphin-p1-recovery-sunxi-with-spl.bin' "$RECOVERY_BOARD"
 
 echo "== 5. Build config sanity =="
