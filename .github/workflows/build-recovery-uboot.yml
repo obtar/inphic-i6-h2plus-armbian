@@ -57,16 +57,12 @@ jobs:
           rsync -av os/userpatches/. build/userpatches/
           rsync -av custom/userpatches/. build/userpatches/
 
-          install -Dm0644 \
-            custom/config/boards/dolphin-p1-recovery.csc \
-            build/config/boards/dolphin-p1-recovery.csc
-
-          test -s build/config/boards/dolphin-p1-recovery.csc
-
           echo "Armbian build revision:"
           git -C build rev-parse --short HEAD
 
+          test -s build/userpatches/config/boards/dolphin-p1-recovery.csc
           echo "Recovery board configuration:"
+          echo "build/userpatches/config/boards/dolphin-p1-recovery.csc"
           grep -E '^(BOARD_NAME|BOARDFAMILY|BOOTCONFIG|BOOT_FDT_FILE|UBOOT_TARGET_MAP|KERNEL_TARGET)=' \
             build/config/boards/dolphin-p1-recovery.csc
           grep -q '^KERNEL_TARGET="current"$' \
