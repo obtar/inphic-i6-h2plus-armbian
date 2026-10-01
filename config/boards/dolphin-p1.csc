@@ -11,6 +11,10 @@ BOARDFAMILY="sun8i"
 # The board hook below changes only the DRAM parameters known from the stock firmware.
 BOOTCONFIG="libretech_all_h3_cc_h2_plus_defconfig"
 
+# sunxi_common.inc normally supplies this target for sun8i/sunxi boards.
+# Keep it explicit so the expected FEL-capable SPL/U-Boot artifact is retained.
+UBOOT_TARGET_MAP=";;u-boot-sunxi-with-spl.bin"
+
 # Mainline Linux DTB added by userpatches/kernel/sunxi-current.
 BOOT_FDT_FILE="allwinner/sun8i-h2-plus-dolphin-p1.dtb"
 
@@ -37,13 +41,8 @@ BOOT_LOGO="no"
 # The board has no usable SD card slot in this design; eMMC is MMC2.
 # Do not disable the Linux MMC controller here: the DTB does that explicitly.
 
-# Use systemd-networkd for a small Debian image.
 NETWORKING_STACK="systemd-networkd"
-
-# Keep first-boot password setup; do not bake a fixed root password into the image.
 CONSOLE_AUTOLOGIN="no"
-
-# Do not blacklist Lima globally; leave the mainline GPU driver available.
 MODULES_BLACKLIST="sunxi_cedrus"
 
 # U-Boot DRAM values taken from the reverse-engineered stock H2+ firmware:
