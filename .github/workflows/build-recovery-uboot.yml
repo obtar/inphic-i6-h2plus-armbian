@@ -138,7 +138,7 @@ jobs:
             - USB Mass Storage (UMS)
             - USB DFU for MMC/RAM
             - USB Fastboot with eMMC flash support
-            - DHCP / TFTP / HTTP(S) download support available through U-Boot commands
+            - DHCP / TFTP / Wget network download commands
             - U-Boot LED framework
 
             Storage is selected explicitly at the U-Boot command line; this build does
