@@ -52,7 +52,7 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
     # Update the generated Kconfig value directly after the defconfig step.
     run_host_command_logged sed -i \
         -e 's#^CONFIG_BOOTCOMMAND=.*#CONFIG_BOOTCOMMAND="ums 0 mmc 1"#' \
-        -e 's#^# CONFIG_BOOTCOMMAND is not set$#CONFIG_BOOTCOMMAND="ums 0 mmc 1"#' \
+        -e 's|^# CONFIG_BOOTCOMMAND is not set$|CONFIG_BOOTCOMMAND="ums 0 mmc 1"|' \
         .config
     run_host_command_logged sed -i 's#^CONFIG_BOOTDELAY=.*#CONFIG_BOOTDELAY=0#' .config
     if ! grep -q '^CONFIG_BOOTCOMMAND=' .config; then
