@@ -10,8 +10,10 @@ CONF="$ROOT/userpatches/config-dolphin-p1.conf"
 test -f "$PATCH"
 test -f "$BOARD"
 test -f "$CONF"
+test -f "$ROOT/scripts/publish-uboot.sh"
 
 echo "== 2. Shell syntax =="
+bash -n "$ROOT/scripts/publish-uboot.sh"
 bash -n "$CONF"
 bash -n "$BOARD"
 
@@ -25,6 +27,7 @@ grep -q 'BOOTSIZE=256' "$BOARD"
 grep -q 'CONFIG_DRAM_CLK "576"' "$BOARD"
 grep -q 'CONFIG_DRAM_ZQ "3881979"' "$BOARD"
 grep -q 'CONFIG_MMC_SUNXI_SLOT_EXTRA "2"' "$BOARD"
+grep -q 'UBOOT_TARGET_MAP=";;u-boot-sunxi-with-spl.bin"' "$BOARD"
 
 echo "== 4. Build config sanity =="
 grep -q 'BOARD="dolphin-p1"' "$CONF"
