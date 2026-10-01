@@ -1,6 +1,14 @@
 name: Build Dolphin-P1 Recovery U-Boot
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/build-recovery-uboot.yml'
+      - 'userpatches/config/boards/dolphin-p1-recovery.csc'
+      - 'userpatches/config-dolphin-p1-recovery.conf'
+      - 'scripts/validate.sh'
   workflow_dispatch:
     inputs:
       clean_runner:
