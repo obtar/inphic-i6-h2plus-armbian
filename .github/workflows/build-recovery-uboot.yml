@@ -1,13 +1,6 @@
 name: Build Dolphin-P1 Recovery U-Boot
 
 on:
-  push:
-    paths:
-      - 'config/boards/dolphin-p1-recovery.csc'
-      - 'userpatches/u-boot/**'
-      - 'userpatches/kernel/sunxi-current/**'
-      - '.github/workflows/build-recovery-uboot.yml'
-      - 'scripts/validate.sh'
   workflow_dispatch:
     inputs:
       clean_runner:
