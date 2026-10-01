@@ -1,357 +1,487 @@
-# Inphic H202A / Dolphin-P1 Armbian
+# Inphic H202A / Dolphin-P1
 
-Clean Armbian/Debian build for the Inphic H202A (Dolphin-P1) based on the Allwinner H2+.
+Armbian/Linux and standalone Recovery U-Boot support for the Inphic H202A (Dolphin-P1), based on the Allwinner H2+.
 
-This repository is intentionally a **new implementation**. It does not preserve or recreate the Android vendor partition layout.
+本项目以主线 Linux / U-Boot 为基础，针对 Dolphin-P1 的实际硬件参数进行适配，并提供独立的 FEL RAM Recovery U-Boot，用于在不依赖 eMMC 中现有系统的情况下恢复或重写内部 eMMC。
 
-## Hardware basis
+## Hardware
 
-- Allwinner H2+ / sun8i H3 family
-- 512 MiB DDR3
-- Samsung 8 GB-class eMMC on MMC2, 8-bit bus, non-removable
-- 100 Mbps internal Ethernet PHY
-- UART0 on PA4/PA5
-- PA15 power LED
-- 32.768 kHz RTC crystal confirmed present on the PCB
-- No RTC backup battery was identified; network time synchronization is therefore required after power loss
-- XR819 Wi-Fi exists on the original board but is disabled in this first clean mainline image
+| Item | Information |
+|---|---|
+| SoC | Allwinner H2+ / sun8i family |
+| RAM | 512 MiB DDR3 |
+| Internal storage | eMMC, 8-bit, non-removable |
+| Ethernet | 100 Mbps |
+| Debug UART | UART0, PA4/PA5 |
+| LED | PA15 |
+| RTC crystal | 32.768 kHz |
+| Wi-Fi | XR819 on the original board |
+| BootROM recovery | Allwinner FEL |
 
-The stock firmware reverse engineering established the U-Boot DRAM parameters as:
+Known Dolphin-P1 DRAM parameters:
 
-```text
-dram_clk = 576 MHz
-dram_zq  = 0x3b3bfb = 3881979
-```
+~~~text
+DRAM clock = 576 MHz
+DRAM ZQ    = 3881979
+DRAM ODT   = enabled
+~~~
 
-## Image layout
+These values are retained by both the normal and Recovery U-Boot configurations.
 
-The generated image uses the normal Armbian partitioning machinery:
+## Project layout
 
-```text
-Disk
-├── raw Allwinner SPL/U-Boot area
-├── 1 MiB-aligned partition table
-├── p1  256 MiB  FAT32  LABEL=BOOT   /boot
-└── p2  remaining ext4 LABEL=rootfs  /
-```
+~~~text
+.
+├── .github/
+│   └── workflows/
+│       └── build-recovery-uboot.yml
+├── userpatches/
+│   ├── config/
+│   │   └── boards/
+│   │       ├── dolphin-p1.csc
+│   │       └── dolphin-p1-recovery.csc
+│   ├── config-dolphin-p1-recovery.conf
+│   └── kernel/
+│       └── ...
+└── README.md
+~~~
 
-There is deliberately no:
+Two independent build targets are provided:
 
-- `sunxi_mbr.fex`
-- `sys_partition.fex`
-- `env.fex`
-- Android `boot.fex`
-- `system/recovery/cache/UDISK` vendor partition set
-- `partitions=` kernel command-line parameter
-- `/dev/block/by-name/*`
-- hard-coded Linux `mmcblk0pN` root device
+~~~text
+dolphin-p1
+    └── normal Armbian/Linux image
 
-The Linux root filesystem is selected using Armbian's normal filesystem identifiers, not the old Android mapping.
+dolphin-p1-recovery
+    └── standalone Recovery U-Boot
+~~~
 
-## Build
+The Recovery target does not build a Debian root filesystem or a complete Linux image.
 
-The repository checks out the official Armbian build framework directly and invokes its `compile.sh`. Custom board definitions and patches are supplied through the supported `userpatches/` mechanism.
+# Normal Armbian
 
-Run **Actions → Build Dolphin-P1 Armbian → Run workflow**.
+The normal board target builds an Armbian image for the Dolphin-P1.
 
-The workflow is manually triggered so changes can be reviewed before consuming a GitHub runner.
+The initial bring-up focuses on:
 
-The workflow uses:
+- U-Boot
+- DRAM
+- eMMC
+- UART
+- Ethernet
+- RTC
+- basic USB support
 
-```text
+The board-specific Linux Device Tree is:
+
+~~~text
+allwinner/sun8i-h2-plus-dolphin-p1.dtb
+~~~
+
+The normal image uses the standard Armbian storage layout rather than the original Android vendor partition scheme.
+
+## Normal build
+
+The project uses the Armbian build framework through GitHub Actions.
+
+Target configuration:
+
+~~~text
 BOARD   = dolphin-p1
+BRANCH  = current
 RELEASE = trixie
-KERNEL  = current
 IMAGE   = minimal
-```
+~~~
 
+The generated image and the normal U-Boot artifact are produced by the normal Armbian build workflow.
 
-### Build outputs
+# FEL / BootROM
 
-Each successful build publishes the normal Armbian image plus the exact mainline sunxi U-Boot produced by the same build:
+The Allwinner BootROM provides FEL recovery before U-Boot and Linux start.
 
-```text
-Armbian-*.img.xz
-u-boot-sunxi-with-spl.bin
-sha256sums.txt
-```
+Check FEL from the host:
 
-The standalone `u-boot-sunxi-with-spl.bin` is intended for the initial Allwinner FEL bring-up. It is generated from the same U-Boot configuration used by the image build, including the Dolphin-P1 DRAM overrides, rather than downloading a generic H2+/H3 U-Boot.
+~~~bash
+sudo sunxi-fel ver
+~~~
 
-This follows the Allwinner packaging model used by ophub's Armbian tooling: Allwinner devices use a board-specific U-Boot artifact, while platform boot files remain separate from board-specific hardware data. The upstream ophub documentation describes Allwinner U-Boot as a board-specific build artifact and uses `u-boot-sunxi-with-spl.bin` for supported Allwinner boards. citeturn1search1turn2search1
+Load a U-Boot SPL image into RAM:
 
-### Board configuration discovery
+~~~bash
+sudo sunxi-fel uboot u-boot-sunxi-with-spl.bin
+~~~
 
-The custom board definitions are stored under Armbian's supported userpatches board path:
+Boot flow:
 
-```text
-userpatches/config/boards/
-├── dolphin-p1.csc
-└── dolphin-p1-recovery.csc
-```
-
-Current Armbian supports board definitions from `USERPATCHES_PATH/config/boards/`; the default `USERPATCHES_PATH` is `userpatches/`. The build framework therefore merges these files into the build's board configuration lookup without modifying the framework itself. citeturn1search0turn1search4
-
-The GitHub Actions workflows explicitly merge:
-
-```text
-custom/userpatches/
-        ↓
-build/userpatches/
-        ↓
-build/userpatches/config/boards/dolphin-p1*.csc
-```
-
-The preparation step verifies the board file exists before `compile.sh` is invoked.
-
-The expected build log then proceeds to load:
-
-```text
-dolphin-p1.csc
-```
-
-## U-Boot
-
-U-Boot uses the upstream H2+ LibreTech configuration as the hardware initialization baseline:
-
-```text
-libretech_all_h3_cc_h2_plus_defconfig
-```
-
-The board configuration hook changes only the known Dolphin-P1 DRAM values and keeps the H2+/MMC2 support from the upstream configuration.
-
-No hand-written U-Boot image is stored in this repository.
-
-## Linux device tree
-
-`userpatches/kernel/sunxi-current/0001-dolphin-p1-dts.patch` adds:
-
-```text
-sun8i-h2-plus-dolphin-p1.dtb
-```
-
-Stage 1 intentionally enables only the hardware needed for the first headless bring-up plus hardware-backed diagnostics:
-
-```text
-UART0
-MMC2 / eMMC
-Ethernet
-PA15 LED
-RTC
-USB PHY
-EHCI/OHCI 1 and 2 (USB-A host candidates)
-thermal
-watchdog
-```
-
-Stage 1 intentionally disables:
-
-```text
-MMC0 / SD
-MMC1 / XR819 Wi-Fi
-USB0 Linux OTG
-EHCI/OHCI 0 and 3
-HDMI
-Audio codec
-IR
-I2C0/I2C1
-crypto
-```
-
-The eMMC VCCQ voltage is not guessed. No `mmc-ddr-1_8v` is enabled until the physical VCCQ voltage is measured.
-
-The CPU fixed 1.2 V regulator from the earlier draft is also intentionally absent; it was not sufficiently justified by the available hardware evidence.
-
-## USB / FEL flashing
-
-The board's USB used for Allwinner FEL/Phoenix flashing must be treated separately from the Linux USB-A host ports.
-
-Before Linux starts:
-
-```text
+~~~text
 PC
  │
- └── USB OTG/data cable
-       │
-       ▼
-   H2+ BootROM USB0/FEL
-       │
-       ├── Phoenix
-       └── sunxi-fel
-```
-
-Therefore disabling the Linux node:
-
-```dts
-&usb_otg {
-    status = "disabled";
-};
-```
-
-does **not** disable BootROM FEL. Phoenix/sunxi-fel operates before the Linux kernel and its Device Tree are running.
-
-The two visible USB-A connectors are treated as Linux Host candidates, currently EHCI/OHCI 1 and 2. Their exact PCB controller mapping remains a bring-up item and should be confirmed with:
-
-```bash
-lsusb
-dmesg | grep -iE 'usb|ehci|ohci|phy'
-dmesg -w
-```
-
-Do not infer the physical USB-A routing solely from controller numbering.
-
-## RTC
-
-The PCB has a confirmed 32.768 kHz RTC crystal, so the Stage-1 DTS enables the RTC:
-
-```dts
-&rtc {
-    status = "okay";
-};
-```
-
-The board has no identified backup battery. The RTC therefore should not be treated as a persistent time source across power loss. Network time synchronization should correct the system clock after boot.
-
-## First boot
-
-For FEL bring-up, connect the board's FEL-capable USB port to the host with a real USB data cable. The BootROM FEL path is independent of the Linux USB Host Device Tree.
-
-On the host:
-
-```bash
-sudo sunxi-fel ver
-sudo sunxi-fel uboot u-boot-sunxi-with-spl.bin
-```
-
-After U-Boot starts, identify the eMMC with `mmc list` and `mmc info` before writing anything. Do not assume the Linux DT `mmc2` numbering is identical to U-Boot's `mmc dev N` numbering.
-
-After writing the generated `.img` to the eMMC, boot the board and use the serial console at:
-
-```text
-115200 8N1
-```
-
-The image intentionally does not embed a permanent `root:root` password. Complete Armbian's first-boot account/password setup on the serial console.
-
-Initial bring-up target:
-
-```text
+ │ USB
+ ▼
+Allwinner BootROM
+ │
+ │ FEL
+ ▼
+SPL
+ │
+ │ DRAM initialization
+ ▼
 U-Boot
-  ↓
-DRAM 576 MHz
-  ↓
-eMMC / MMC2
-  ↓
-Linux current
-  ↓
-rootfs
-  ↓
-eth0
-  ↓
-SSH
-```
+ │
+ ▼
+Linux or recovery operation
+~~~
 
-## Flashing
+FEL is a BootROM function. Disabling a Linux USB Device Tree node does not disable the BootROM FEL interface.
 
-**Writing an image to an eMMC is destructive. Verify the target device before writing.**
+# Standalone Recovery U-Boot
 
-For the initial Allwinner recovery/flashing path, use the board's OTG/FEL USB connection with Phoenix or `sunxi-fel`. The Linux USB Host configuration is not required for entering FEL mode.
+The project provides a separate Recovery U-Boot:
 
-After a Linux system can directly access the eMMC, a normal image write can be performed after identifying the correct device:
+~~~text
+u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+~~~
 
-```bash
-sudo umount /dev/mmcblkX* 2>/dev/null || true
-xz -dc Armbian_*.img.xz | sudo dd of=/dev/mmcblkX bs=4M status=progress conv=fsync
-```
+The recovery bootloader is designed for RAM-only execution through FEL.
 
-Replace `mmcblkX` with the actual eMMC device. Do not blindly use `mmcblk0`.
+Primary recovery workflow:
 
-## Current scope
+~~~text
+Allwinner BootROM / FEL
+        │
+        ▼
+Recovery U-Boot loaded into RAM
+        │
+        ▼
+U-Boot automatically starts UMS
+        │
+        ▼
+Internal eMMC exposed as USB Mass Storage
+        │
+        ▼
+PC sees the eMMC as a block device
+        │
+        ▼
+Write a complete image to the eMMC
+~~~
 
-The first build intentionally prioritizes:
+The Recovery U-Boot does not depend on a working Linux installation on the eMMC.
 
-1. DRAM initialization
-2. eMMC boot
-3. serial console
-4. Ethernet
-5. RTC
-6. basic USB Host bring-up
-7. clean Debian/Armbian storage layout
+## Recovery U-Boot configuration
 
-HDMI, audio, IR, I2C peripherals, XR819 Wi-Fi, and board-specific USB routing are deferred until the minimal boot path is proven.
+~~~text
+BOOTCONFIG             = libretech_all_h3_cc_h2_plus_defconfig
+BOOT_FDT_FILE          = allwinner/sun8i-h2-plus-dolphin-p1.dtb
+UBOOT_TARGET           = u-boot-sunxi-with-spl.bin
+DRAM clock             = 576 MHz
+DRAM ZQ                = 3881979
+DRAM ODT               = enabled
+MMC_SUNXI_SLOT_EXTRA   = 2
+~~~
 
-## Scheme 1 status: deferred
+Automatic UMS configuration:
 
-The original Scheme 1 — detecting a physical Reset button in U-Boot and entering recovery before normal boot — is intentionally **not implemented yet**.
+~~~text
+CONFIG_AUTOBOOT=y
+CONFIG_USE_BOOTCOMMAND=y
+CONFIG_BOOTDELAY=0
+CONFIG_BOOTCOMMAND="ums 0 mmc 1"
+~~~
 
-The first priority is to boot the normal Linux image successfully. Once Linux is running, the button GPIO can be identified and tested from Linux. Only after the actual button wiring/value is confirmed will a U-Boot Reset-to-Recovery path be considered.
+After FEL loads the Recovery U-Boot, it attempts to enter USB Mass Storage automatically.
 
-This avoids guessing a GPIO from the old Android configuration.
+BOOTDELAY=0 still allows a UART keypress to interrupt autoboot. This is different from U-Boot's -2 setting, which disables the autoboot abort check.
 
-## Scheme 2: standalone minimal recovery U-Boot
+## eMMC numbering
 
-Scheme 2 is implemented as a separate U-Boot-only build target:
+With:
 
-    config/boards/dolphin-p1-recovery.csc
-    userpatches/config-dolphin-p1-recovery.conf
-    .github/workflows/build-recovery-uboot.yml
+~~~text
+CONFIG_MMC_SUNXI_SLOT_EXTRA=2
+~~~
 
-Run **Actions → Build Dolphin-P1 Recovery U-Boot → Run workflow**.
+the current U-Boot configuration maps the internal eMMC to:
 
-This target does **not** build Debian, a kernel, or a complete Armbian image. It produces:
+~~~text
+U-Boot: mmc 1
+~~~
 
-    u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+Linux device numbering is separate and must not be assumed to match U-Boot.
 
-The recovery U-Boot keeps the same known-good Dolphin-P1 initialization baseline:
+Before destructive operations in an interactive U-Boot session:
 
-    H2+ LibreTech U-Boot defconfig
-    DRAM = 576 MHz
-    DRAM ZQ = 3881979
-    MMC_SUNXI_SLOT_EXTRA = 2
+~~~text
+mmc list
+mmc dev 1
+mmc info
+~~~
 
-and additionally enables the recovery interfaces required for bring-up and storage recovery:
+Always verify the actual device on the board.
 
-    USB UMS
-    USB DFU
-    USB Fastboot
-    MMC/GPT/partition commands
-    DHCP
-    TFTP
-    Ping
-    Wget
-    DNS/TCP support
-    U-Boot LED framework
+# USB Recovery Interfaces
 
-UMS is the primary method for writing a complete `.img` to the eMMC because the host sees the eMMC as a USB mass-storage block device. DFU and Fastboot are additional recovery transports for RAM/partition-oriented operations.
+The Recovery U-Boot enables several recovery transports.
 
-### Recovery U-Boot storage rule
+## USB Mass Storage
 
-The recovery build deliberately does **not** assume that Linux `mmc2` and U-Boot's `mmc dev N` use the same numbering.
+Primary recovery mechanism:
 
-Before any destructive operation, use U-Boot:
+~~~text
+ums 0 mmc 1
+~~~
 
-    mmc list
-    mmc dev N
-    mmc info
+This exposes the eMMC block device through USB Mass Storage.
 
-and identify the actual eMMC device.
+On a Linux host:
 
-The Fastboot MMC target is currently configured as U-Boot MMC device `1`, matching the current upstream U-Boot sunxi Kconfig rule for `CONFIG_MMC_SUNXI_SLOT_EXTRA=2`. This is a build-time default, not a substitute for checking the actual device with U-Boot.
+~~~bash
+lsusb
+lsblk
+dmesg
+~~~
 
-### Planned recovery flow
+Identify the newly appeared disk before writing anything.
 
-    Allwinner BootROM / FEL
-            |
-            +-- normal U-Boot --> Linux
-            |
-            +-- recovery U-Boot
-                    |
-                    +-- USB UMS  --> host sees eMMC --> write full .img
-                    |
-                    +-- USB DFU  --> MMC/RAM recovery
-                    |
-                    +-- Fastboot --> partition-oriented recovery
-                    |
-                    +-- DHCP/TFTP/Wget --> network-assisted recovery
+A complete Armbian image can then be written after identifying the correct USB disk:
 
-The recovery U-Boot is intentionally kept separate from the normal Armbian image. This makes the recovery artifact independently testable and avoids introducing recovery-specific code into the normal Linux boot path.
+~~~bash
+xz -dc Armbian_*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+~~~
+
+Replace /dev/sdX with the actual Recovery U-Boot USB disk.
+
+**Writing an image is destructive. Verify the device before running dd.**
+
+## USB DFU
+
+DFU support is enabled for RAM and MMC recovery.
+
+Relevant features:
+
+~~~text
+CONFIG_CMD_DFU
+CONFIG_USB_FUNCTION_DFU
+CONFIG_DFU_MMC
+CONFIG_DFU_RAM
+~~~
+
+DFU is an additional recovery mechanism; UMS remains the primary whole-disk recovery path.
+
+## USB Fastboot
+
+Fastboot support is enabled for partition-oriented recovery.
+
+The current build provides MMC flash support and uses U-Boot MMC device 1 as its default MMC target.
+
+Verify the actual device before destructive operations.
+
+## Network recovery
+
+The Recovery U-Boot also enables:
+
+~~~text
+DHCP
+Ping
+TFTP
+Wget
+DNS
+TCP
+~~~
+
+This permits network-assisted recovery without requiring a Linux root filesystem.
+
+# Recovery Build
+
+Recovery U-Boot is built separately from the normal Armbian image.
+
+Configuration files:
+
+~~~text
+userpatches/config/boards/dolphin-p1-recovery.csc
+userpatches/config-dolphin-p1-recovery.conf
+.github/workflows/build-recovery-uboot.yml
+~~~
+
+The workflow invokes:
+
+~~~bash
+./compile.sh uboot \
+  BOARD="dolphin-p1-recovery" \
+  BRANCH="current" \
+  KERNEL_CONFIGURE="no"
+~~~
+
+Expected artifact:
+
+~~~text
+build/output/images/
+└── u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+~~~
+
+A SHA-256 checksum is generated alongside the artifact.
+
+## GitHub Actions
+
+The Recovery U-Boot workflow is **manual only**.
+
+Trigger it from:
+
+~~~text
+Actions
+  → Build Dolphin-P1 Recovery U-Boot
+  → Run workflow
+~~~
+
+There is intentionally no automatic push trigger for this workflow.
+
+The workflow:
+
+1. Checks out this repository.
+2. Checks out the Armbian build framework.
+3. Installs build requirements.
+4. Installs the custom Dolphin-P1 Recovery board configuration.
+5. Builds only U-Boot.
+6. Verifies the generated Recovery U-Boot.
+7. Generates SHA-256 checksums.
+8. Uploads the Recovery U-Boot as an Actions artifact.
+9. Publishes a prerelease containing the Recovery U-Boot.
+
+# Recovery Procedure
+
+## 1. Connect FEL USB
+
+Connect the PC to the board's FEL-capable USB port.
+
+~~~bash
+sudo sunxi-fel ver
+~~~
+
+## 2. Load Recovery U-Boot
+
+~~~bash
+sudo sunxi-fel uboot u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+~~~
+
+The SPL initializes DRAM and then starts U-Boot from RAM.
+
+## 3. UMS starts automatically
+
+The configured boot command is:
+
+~~~text
+ums 0 mmc 1
+~~~
+
+The internal eMMC should appear on the PC as a USB Mass Storage device.
+
+On Linux:
+
+~~~bash
+dmesg -w
+lsblk
+~~~
+
+Identify the newly appeared disk.
+
+## 4. Write the image
+
+For an Armbian compressed image:
+
+~~~bash
+xz -dc Armbian_*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+sync
+~~~
+
+Then safely disconnect the USB disk from the host before rebooting the board.
+
+# Serial Console
+
+UART0 is used for U-Boot and Linux debugging.
+
+~~~text
+115200 baud
+8 data bits
+No parity
+1 stop bit
+~~~
+
+Useful U-Boot commands:
+
+~~~text
+version
+bdinfo
+mmc list
+mmc info
+usb start
+printenv
+~~~
+
+If autoboot is interrupted, the U-Boot console can be used to inspect the hardware before starting a recovery operation.
+
+# Important Safety Notes
+
+- Recovery U-Boot operates directly on the internal eMMC.
+- UMS gives the host direct block-level access to the eMMC.
+- A wrong dd target can destroy another disk.
+- Always verify the device with lsblk before writing.
+- Do not assume Linux mmcblk0, U-Boot mmc 0, and U-Boot mmc 1 refer to the same physical device.
+- Do not interrupt an active eMMC write.
+- Keep a known-good FEL connection available during development.
+- The Recovery U-Boot is intended for development and recovery, not as the normal persistent bootloader configuration.
+
+# Current Scope
+
+Implemented:
+
+- Dolphin-P1 H2+ board definition
+- Dolphin-P1 DRAM parameters
+- eMMC support
+- mainline Linux Device Tree integration
+- normal Armbian image build
+- standalone Recovery U-Boot build
+- FEL RAM boot
+- automatic eMMC UMS
+- USB DFU
+- USB Fastboot
+- network recovery commands
+- manual-only Recovery U-Boot GitHub Actions workflow
+
+Not currently part of the Recovery U-Boot:
+
+- automatic Reset-button detection
+- Reset-button-triggered recovery
+- persistent recovery boot selection
+- automatic repartitioning without host confirmation
+- NAND UMS
+
+The recovery design intentionally starts with:
+
+~~~text
+FEL → RAM U-Boot → eMMC UMS
+~~~
+
+because this path does not depend on the existing eMMC software installation.
+
+# Development Direction
+
+The recovery path is kept independent from the normal Linux image:
+
+~~~text
+                    ┌───────────────┐
+                    │ Allwinner FEL │
+                    └───────┬───────┘
+                            │
+                 ┌──────────┴──────────┐
+                 │                     │
+                 ▼                     ▼
+        Normal U-Boot          Recovery U-Boot
+                 │                     │
+                 ▼                     ▼
+              Linux              USB UMS / DFU /
+                 │                Fastboot / Network
+                 ▼                     │
+             Armbian                  ▼
+                                  eMMC recovery
+~~~
+
+This separation keeps the Recovery U-Boot independently buildable and testable while the normal Armbian image evolves separately.
