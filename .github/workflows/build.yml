@@ -1,14 +1,6 @@
 name: Build Dolphin-P1 Armbian
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/build.yml'
-      - 'userpatches/**'
-      - 'scripts/validate.sh'
-      - 'README.md'
   workflow_dispatch:
     inputs:
       clean_runner:
