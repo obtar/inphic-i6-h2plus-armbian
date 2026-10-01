@@ -64,9 +64,9 @@ jobs:
           echo "Recovery board configuration:"
           echo "build/userpatches/config/boards/dolphin-p1-recovery.csc"
           grep -E '^(BOARD_NAME|BOARDFAMILY|BOOTCONFIG|BOOT_FDT_FILE|UBOOT_TARGET_MAP|KERNEL_TARGET)=' \
-            build/config/boards/dolphin-p1-recovery.csc
+            build/userpatches/config/boards/dolphin-p1-recovery.csc
           grep -q '^KERNEL_TARGET="current"$' \
-            build/config/boards/dolphin-p1-recovery.csc
+            build/userpatches/config/boards/dolphin-p1-recovery.csc
 
       - name: Install Armbian build requirements
         working-directory: build
