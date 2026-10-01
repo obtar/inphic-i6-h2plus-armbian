@@ -47,17 +47,11 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
     # A UART keypress can therefore still interrupt autoboot.
     run_host_command_logged scripts/config --enable CONFIG_AUTOBOOT
     run_host_command_logged scripts/config --enable CONFIG_USE_BOOTCOMMAND
-    # scripts/config in the current Armbian/U-Boot build environment does not
-    # reliably preserve spaces in this string through the Armbian command runner.
-    # Update the generated Kconfig value directly after the defconfig step.
-    run_host_command_logged sed -i \
-        -e 's#^CONFIG_BOOTCOMMAND=.*#CONFIG_BOOTCOMMAND="ums 0 mmc 1"#' \
-        -e 's|^# CONFIG_BOOTCOMMAND is not set$|CONFIG_BOOTCOMMAND="ums 0 mmc 1"|' \
-        .config
-    run_host_command_logged sed -i 's#^CONFIG_BOOTDELAY=.*#CONFIG_BOOTDELAY=0#' .config
-    if ! grep -q '^CONFIG_BOOTCOMMAND=' .config; then
-        run_host_command_logged sh -c 'printf "%s\\n" "CONFIG_BOOTCOMMAND=\"ums 0 mmc 1\"" >> .config'
-    fi
+    # run_host_command_logged rebuilds its command from $* before passing it
+    # to bash -c, so the complete command must be supplied as one argument.
+    # Otherwise the spaces in the boot command are split into separate arguments.
+    run_host_command_logged 'scripts/config --set-str CONFIG_BOOTCOMMAND "ums 0 mmc 1"'
+    run_host_command_logged scripts/config --set-val CONFIG_BOOTDELAY "0"
 
     # H2+ uses the Allwinner MUSB OTG controller for USB peripheral mode.
     # The base LibreTech defconfig enables EHCI/OHCI host support but not
