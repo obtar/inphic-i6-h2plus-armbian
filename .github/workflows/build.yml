@@ -105,6 +105,12 @@ jobs:
             SHARE_LOG="yes" \
             EXPERT="yes"
 
+      - name: Export U-Boot and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash custom/scripts/publish-uboot.sh build
+
       - name: Show build output
         if: always()
         shell: bash
@@ -141,6 +147,8 @@ jobs:
             - Minimal CLI
             - Clean eMMC layout
             - Custom Dolphin-P1 DTB
+            - Mainline sunxi U-Boot
+            - Standalone u-boot-sunxi-with-spl.bin for FEL bring-up
             - No original Android/vendor partition layout
 
             This is a manually triggered development build.
