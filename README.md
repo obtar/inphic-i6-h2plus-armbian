@@ -50,7 +50,7 @@ The Linux root filesystem is selected using Armbian's normal filesystem identifi
 
 ## Build
 
-The repository checks out the official Armbian build framework directly and invokes its `compile.sh`. This is intentional: the custom board file must be installed into the checked-out Armbian framework before board discovery.
+The repository checks out the official Armbian build framework directly and invokes its `compile.sh`. Custom board definitions and patches are supplied through the supported `userpatches/` mechanism.
 
 Run **Actions → Build Dolphin-P1 Armbian → Run workflow**.
 
@@ -82,34 +82,32 @@ This follows the Allwinner packaging model used by ophub's Armbian tooling: Allw
 
 ### Board configuration discovery
 
-The custom board definition is stored in the repository at:
+The custom board definitions are stored under Armbian's supported userpatches board path:
 
 ```text
-config/boards/dolphin-p1.csc
+userpatches/config/boards/
+├── dolphin-p1.csc
+└── dolphin-p1-recovery.csc
 ```
 
-Armbian discovers board definitions from the build framework's:
+Current Armbian supports board definitions from `USERPATCHES_PATH/config/boards/`; the default `USERPATCHES_PATH` is `userpatches/`. The build framework therefore merges these files into the build's board configuration lookup without modifying the framework itself. citeturn1search0turn1search4
+
+The GitHub Actions workflows explicitly merge:
 
 ```text
-build/config/boards/
-```
-
-The current `armbian/build@main` composite action copies `custom/userpatches` into `build/userpatches`, but does not copy a repository-level `config/boards/*.csc` into the framework.
-
-The workflow therefore deliberately prepares the Armbian build checkout first and installs:
-
-```text
-config/boards/dolphin-p1.csc
+custom/userpatches/
         ↓
-build/config/boards/dolphin-p1.csc
+build/userpatches/
+        ↓
+build/userpatches/config/boards/dolphin-p1*.csc
 ```
 
-The workflow prints the installed board configuration before invoking the official build action. The action's own framework checkout uses `clean: false`, so this custom board file is retained.
+The preparation step verifies the board file exists before `compile.sh` is invoked.
 
-The expected early build log contains the board configuration being sourced:
+The expected build log then proceeds to load:
 
 ```text
-Sourcing board configuration ... dolphin-p1.csc
+dolphin-p1.csc
 ```
 
 ## U-Boot
