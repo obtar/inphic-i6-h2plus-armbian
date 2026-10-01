@@ -65,9 +65,9 @@ jobs:
           test -s build/userpatches/config/boards/dolphin-p1.csc
           echo "Board configuration:"
           echo "build/userpatches/config/boards/dolphin-p1.csc"
-          readlink -f build/config/boards/dolphin-p1.csc
+          readlink -f build/userpatches/config/boards/dolphin-p1.csc
           grep -E '^(BOARD_NAME|BOARDFAMILY|BOOTCONFIG|BOOT_FDT_FILE)=' \
-            build/config/boards/dolphin-p1.csc
+            build/userpatches/config/boards/dolphin-p1.csc
 
           echo "Custom DTS patch:"
           ls -l custom/userpatches/kernel/sunxi-current/0001-dolphin-p1-dts.patch
