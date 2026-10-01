@@ -281,3 +281,79 @@ The first build intentionally prioritizes:
 7. clean Debian/Armbian storage layout
 
 HDMI, audio, IR, I2C peripherals, XR819 Wi-Fi, and board-specific USB routing are deferred until the minimal boot path is proven.
+
+## Scheme 1 status: deferred
+
+The original Scheme 1 — detecting a physical Reset button in U-Boot and entering recovery before normal boot — is intentionally **not implemented yet**.
+
+The first priority is to boot the normal Linux image successfully. Once Linux is running, the button GPIO can be identified and tested from Linux. Only after the actual button wiring/value is confirmed will a U-Boot Reset-to-Recovery path be considered.
+
+This avoids guessing a GPIO from the old Android configuration.
+
+## Scheme 2: standalone minimal recovery U-Boot
+
+Scheme 2 is implemented as a separate U-Boot-only build target:
+
+    config/boards/dolphin-p1-recovery.csc
+    userpatches/config-dolphin-p1-recovery.conf
+    .github/workflows/build-recovery-uboot.yml
+
+Run **Actions → Build Dolphin-P1 Recovery U-Boot → Run workflow**.
+
+This target does **not** build Debian, a kernel, or a complete Armbian image. It produces:
+
+    u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+
+The recovery U-Boot keeps the same known-good Dolphin-P1 initialization baseline:
+
+    H2+ LibreTech U-Boot defconfig
+    DRAM = 576 MHz
+    DRAM ZQ = 3881979
+    MMC_SUNXI_SLOT_EXTRA = 2
+
+and additionally enables the recovery interfaces required for bring-up and storage recovery:
+
+    USB UMS
+    USB DFU
+    USB Fastboot
+    MMC/GPT/partition commands
+    DHCP
+    TFTP
+    Ping
+    Wget
+    DNS/TCP support
+    U-Boot LED framework
+
+UMS is the primary method for writing a complete `.img` to the eMMC because the host sees the eMMC as a USB mass-storage block device. DFU and Fastboot are additional recovery transports for RAM/partition-oriented operations.
+
+### Recovery U-Boot storage rule
+
+The recovery build deliberately does **not** assume that Linux `mmc2` and U-Boot's `mmc dev N` use the same numbering.
+
+Before any destructive operation, use U-Boot:
+
+    mmc list
+    mmc dev N
+    mmc info
+
+and identify the actual eMMC device.
+
+The Fastboot MMC target is currently configured as U-Boot MMC device `1`, matching the current upstream U-Boot sunxi Kconfig rule for `CONFIG_MMC_SUNXI_SLOT_EXTRA=2`. This is a build-time default, not a substitute for checking the actual device with U-Boot.
+
+### Planned recovery flow
+
+    Allwinner BootROM / FEL
+            |
+            +-- normal U-Boot --> Linux
+            |
+            +-- recovery U-Boot
+                    |
+                    +-- USB UMS  --> host sees eMMC --> write full .img
+                    |
+                    +-- USB DFU  --> MMC/RAM recovery
+                    |
+                    +-- Fastboot --> partition-oriented recovery
+                    |
+                    +-- DHCP/TFTP/Wget --> network-assisted recovery
+
+The recovery U-Boot is intentionally kept separate from the normal Armbian image. This makes the recovery artifact independently testable and avoids introducing recovery-specific code into the normal Linux boot path.

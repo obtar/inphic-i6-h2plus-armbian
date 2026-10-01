@@ -1,0 +1,151 @@
+name: Build Dolphin-P1 Recovery U-Boot
+
+on:
+  workflow_dispatch:
+    inputs:
+      clean_runner:
+        description: 'Free GitHub runner disk space before building'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dolphin-p1-recovery-uboot
+  cancel-in-progress: true
+
+jobs:
+  build-recovery-uboot:
+    name: Dolphin-P1 / Recovery U-Boot
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Free GitHub runner disk space
+        if: ${{ inputs.clean_runner }}
+        uses: descriptinc/free-disk-space@1b4b157593c6801212a2ed488c205e0a810b4592
+
+      - name: Checkout custom repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: custom
+
+      - name: Checkout Armbian OS
+        uses: actions/checkout@v4
+        with:
+          repository: armbian/os
+          ref: main
+          fetch-depth: 1
+          path: os
+
+      - name: Checkout Armbian build framework
+        uses: actions/checkout@v4
+        with:
+          repository: armbian/build
+          ref: main
+          fetch-depth: 1
+          path: build
+
+      - name: Prepare custom board and userpatches
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -pv build/userpatches
+          rsync -av os/userpatches/. build/userpatches/
+          rsync -av custom/userpatches/. build/userpatches/
+
+          install -Dm0644 \
+            custom/config/boards/dolphin-p1-recovery.csc \
+            build/config/boards/dolphin-p1-recovery.csc
+
+          test -s build/config/boards/dolphin-p1-recovery.csc
+
+          echo "Armbian build revision:"
+          git -C build rev-parse --short HEAD
+
+          echo "Recovery board configuration:"
+          grep -E '^(BOARD_NAME|BOARDFAMILY|BOOTCONFIG|BOOT_FDT_FILE|UBOOT_TARGET_MAP)=' \
+            build/config/boards/dolphin-p1-recovery.csc
+
+      - name: Install Armbian build requirements
+        working-directory: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo ./compile.sh requirements
+          sudo chown -R "$USER:$USER" .
+
+      - name: Build recovery U-Boot
+        working-directory: build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ./compile.sh uboot \
+            BOARD="dolphin-p1-recovery" \
+            BRANCH="current" \
+            KERNEL_CONFIGURE="no"
+
+      - name: Verify recovery U-Boot and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s build/output/images/u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+          file build/output/images/u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+
+          (
+            cd build/output/images
+            sha256sum u-boot-dolphin-p1-recovery-sunxi-with-spl.bin > sha256sums-recovery-uboot.txt
+          )
+
+      - name: Show recovery build output
+        if: always()
+        shell: bash
+        run: |
+          echo "=== recovery U-Boot ==="
+          find build/output/images -maxdepth 1 -type f \
+            -printf '%f %s bytes\n' 2>/dev/null || true
+
+      - name: Upload recovery U-Boot
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dolphin-p1-recovery-uboot
+          path: |
+            build/output/images/u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+            build/output/images/sha256sums-recovery-uboot.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish recovery U-Boot release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dolphin-p1-recovery-uboot-${{ github.run_number }}
+          name: Dolphin-P1 Recovery U-Boot ${{ github.run_number }}
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            Inphic H202A / Dolphin-P1, Allwinner H2+.
+
+            Scheme 2 standalone recovery bootloader.
+
+            Enabled recovery transports:
+            - USB Mass Storage (UMS)
+            - USB DFU for MMC/RAM
+            - USB Fastboot with eMMC flash support
+            - DHCP / TFTP / Wget network download commands
+            - U-Boot LED framework
+
+            Storage is selected explicitly at the U-Boot command line; this build does
+            not assume that the Linux mmc numbering is identical to U-Boot numbering.
+            Verify `mmc list` and `mmc info` before destructive writes.
+
+            Reset-button recovery (Scheme 1) is intentionally not included yet.
+          files: |
+            build/output/images/u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
+            build/output/images/sha256sums-recovery-uboot.txt
