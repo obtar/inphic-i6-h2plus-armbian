@@ -50,15 +50,11 @@ The Linux root filesystem is selected using Armbian's normal filesystem identifi
 
 ## Build
 
-The repository uses the official Armbian GitHub build action:
-
-```text
-armbian/build@main
-```
+The repository checks out the official Armbian build framework directly and invokes its `compile.sh`. This is intentional: the custom board file must be installed into the checked-out Armbian framework before board discovery.
 
 Run **Actions → Build Dolphin-P1 Armbian → Run workflow**.
 
-A push to `master` that changes `config/`, `userpatches/`, `scripts/`, `README.md`, or the workflow also starts a build.
+The workflow is manually triggered so changes can be reviewed before consuming a GitHub runner.
 
 The workflow uses:
 
@@ -68,6 +64,21 @@ RELEASE = trixie
 KERNEL  = current
 IMAGE   = minimal
 ```
+
+
+### Build outputs
+
+Each successful build publishes the normal Armbian image plus the exact mainline sunxi U-Boot produced by the same build:
+
+```text
+Armbian-*.img.xz
+u-boot-sunxi-with-spl.bin
+sha256sums.txt
+```
+
+The standalone `u-boot-sunxi-with-spl.bin` is intended for the initial Allwinner FEL bring-up. It is generated from the same U-Boot configuration used by the image build, including the Dolphin-P1 DRAM overrides, rather than downloading a generic H2+/H3 U-Boot.
+
+This follows the Allwinner packaging model used by ophub's Armbian tooling: Allwinner devices use a board-specific U-Boot artifact, while platform boot files remain separate from board-specific hardware data. The upstream ophub documentation describes Allwinner U-Boot as a board-specific build artifact and uses `u-boot-sunxi-with-spl.bin` for supported Allwinner boards. citeturn1search1turn2search1
 
 ### Board configuration discovery
 
@@ -204,6 +215,17 @@ The PCB has a confirmed 32.768 kHz RTC crystal, so the Stage-1 DTS enables the R
 The board has no identified backup battery. The RTC therefore should not be treated as a persistent time source across power loss. Network time synchronization should correct the system clock after boot.
 
 ## First boot
+
+For FEL bring-up, connect the board's FEL-capable USB port to the host with a real USB data cable. The BootROM FEL path is independent of the Linux USB Host Device Tree.
+
+On the host:
+
+```bash
+sudo sunxi-fel ver
+sudo sunxi-fel uboot u-boot-sunxi-with-spl.bin
+```
+
+After U-Boot starts, identify the eMMC with `mmc list` and `mmc info` before writing anything. Do not assume the Linux DT `mmc2` numbering is identical to U-Boot's `mmc dev N` numbering.
 
 After writing the generated `.img` to the eMMC, boot the board and use the serial console at:
 
