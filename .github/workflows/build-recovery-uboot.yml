@@ -68,14 +68,6 @@ jobs:
           grep -q '^KERNEL_TARGET="current"$' \
             build/userpatches/config/boards/dolphin-p1-recovery.csc
 
-      - name: Install Armbian build requirements
-        working-directory: build
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo ./compile.sh requirements
-          sudo chown -R "$USER:$USER" .
-
       - name: Build recovery U-Boot
         working-directory: build
         shell: bash
@@ -85,7 +77,8 @@ jobs:
           ./compile.sh uboot \
             BOARD="dolphin-p1-recovery" \
             BRANCH="current" \
-            KERNEL_CONFIGURE="no"
+            KERNEL_CONFIGURE="no" \
+            PREFER_DOCKER="yes"
 
       - name: Verify recovery U-Boot and checksums
         shell: bash
