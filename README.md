@@ -153,7 +153,7 @@ Allwinner BootROM / FEL
 Recovery U-Boot loaded into RAM
         │
         ▼
-U-Boot automatically starts UMS
+Recovery U-Boot does not automatically start UMS
         │
         ▼
 Internal eMMC exposed as USB Mass Storage
@@ -274,11 +274,36 @@ DFU is an additional recovery mechanism; UMS remains the primary whole-disk reco
 
 ## USB Fastboot
 
-Fastboot support is enabled for partition-oriented recovery.
+Fastboot support is enabled for partition-oriented recovery, but Fastboot is **not started automatically**.
 
-The current build provides MMC flash support and uses U-Boot MMC device 1 as its default MMC target.
+Enter Fastboot manually from the U-Boot prompt:
 
-Verify the actual device before destructive operations.
+~~~text
+fastboot usb 0
+~~~
+
+The current build provides MMC flash support and uses U-Boot MMC device 1 as its default MMC target. The Fastboot download buffer is:
+
+~~~text
+address = 0x42000000
+size    = 0x10000000 (256 MiB)
+USB     = 0
+~~~
+
+On the host, verify that the device appears:
+
+~~~bash
+fastboot devices
+fastboot getvar all
+~~~
+
+For a partition that exists in the eMMC partition table, flashing uses the normal Fastboot syntax:
+
+~~~bash
+fastboot flash <partition> <image>
+~~~
+
+Verify the actual device and partition before destructive operations.
 
 ## Network recovery / NetConsole
 
@@ -399,15 +424,23 @@ sudo sunxi-fel uboot u-boot-dolphin-p1-recovery-sunxi-with-spl.bin
 
 The SPL initializes DRAM and then starts U-Boot from RAM.
 
-## 3. UMS starts automatically
+## 3. Select a recovery transport
 
-The configured boot command is:
+The Recovery U-Boot does not automatically enter UMS or Fastboot mode.
+
+For whole-disk access, start UMS manually:
 
 ~~~text
 ums 0 mmc 1
 ~~~
 
-The internal eMMC should appear on the PC as a USB Mass Storage device.
+For Fastboot partition recovery, start USB Fastboot manually:
+
+~~~text
+fastboot usb 0
+~~~
+
+Choose only one USB gadget mode at a time. The internal eMMC is the target storage for both recovery paths.
 
 On Linux:
 
