@@ -39,19 +39,14 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
     run_host_command_logged scripts/config --enable CONFIG_CMD_GPT
     run_host_command_logged scripts/config --enable CONFIG_CMD_PART
 
-    # RAM-only recovery: autoboot directly into USB Mass Storage.
-    # Allwinner FEL loads and executes this U-Boot entirely from RAM.
+    # Recovery U-Boot is interactive by default.
+    # UMS is enabled but MUST NOT start automatically.
     # With MMC_SUNXI_SLOT_EXTRA=2, the internal eMMC is U-Boot mmc 1.
-    # BOOTDELAY=0 is supplied as a board variable above; Armbian applies it
-    # using its U-Boot configuration path and also enables the zero-delay check.
-    # A UART keypress can therefore still interrupt autoboot.
     run_host_command_logged scripts/config --enable CONFIG_AUTOBOOT
     run_host_command_logged scripts/config --enable CONFIG_USE_BOOTCOMMAND
-    # run_host_command_logged rebuilds its command from $* before passing it
-    # to bash -c, so the complete command must be supplied as one argument.
-    # Otherwise the spaces in the boot command are split into separate arguments.
-    run_host_command_logged 'scripts/config --set-str CONFIG_BOOTCOMMAND "ums 0 mmc 1"'
+    run_host_command_logged 'scripts/config --set-str CONFIG_BOOTCOMMAND "echo Recovery U-Boot ready - run: ums 0 mmc 1"'
     run_host_command_logged scripts/config --set-val CONFIG_BOOTDELAY "0"
+    run_host_command_logged scripts/config --enable CONFIG_USE_PREBOOT
 
     # H2+ uses the Allwinner MUSB OTG controller for USB peripheral mode.
     # The base LibreTech defconfig enables EHCI/OHCI host support but not
@@ -69,6 +64,7 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
 
     # USB DFU: expose MMC/RAM targets through the standard DFU protocol.
     run_host_command_logged scripts/config --enable CONFIG_CMD_DFU
+    run_host_command_logged scripts/config --enable CONFIG_USB_FUNCTION_DFU
     run_host_command_logged scripts/config --enable CONFIG_DFU_MMC
     run_host_command_logged scripts/config --enable CONFIG_DFU_RAM
 
@@ -89,14 +85,31 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
     run_host_command_logged scripts/config --enable CONFIG_CMD_DHCP
     run_host_command_logged scripts/config --enable CONFIG_CMD_PING
     run_host_command_logged scripts/config --enable CONFIG_CMD_TFTPBOOT
+    run_host_command_logged scripts/config --enable CONFIG_CMD_TFTPPUT
     run_host_command_logged scripts/config --enable CONFIG_CMD_WGET
     run_host_command_logged scripts/config --enable CONFIG_CMD_DNS
     run_host_command_logged scripts/config --enable CONFIG_PROT_TCP
+    run_host_command_logged scripts/config --enable CONFIG_NETCONSOLE
+    run_host_command_logged scripts/config --enable CONFIG_NET_RANDOM_ETHADDR
 
-    # Status LED framework. GPIO mapping/trigger policy is intentionally
-    # deferred until the Linux bring-up confirms the hardware behaviour.
-    run_host_command_logged scripts/config --enable CONFIG_LED
-    run_host_command_logged scripts/config --enable CONFIG_LED_GPIO
+    # Static network + automatic NetConsole.
+    # U-Boot client: 192.168.1.251/24
+    # TFTP/NetConsole server: 192.168.1.250
+    # Gateway: 192.168.1.1
+    run_host_command_logged scripts/config --enable CONFIG_USE_PREBOOT
+    run_host_command_logged 'scripts/config --set-str CONFIG_PREBOOT "setenv ipaddr 192.168.1.251; setenv serverip 192.168.1.250; setenv gatewayip 192.168.1.1; setenv netmask 255.255.255.0; setenv ncip 192.168.1.250:6666; ping 192.168.1.250; setenv stdin serial,nc; setenv stdout serial,nc; setenv stderr serial,nc"'
+
+    # eMMC + SD controller support.
+    run_host_command_logged scripts/config --enable CONFIG_MMC
+    run_host_command_logged scripts/config --enable CONFIG_MMC_SUNXI
+    run_host_command_logged scripts/config --set-val CONFIG_MMC_SUNXI_SLOT_EXTRA "2"
+
+    # Allwinner raw NAND controller support.
+    run_host_command_logged scripts/config --enable CONFIG_NAND_SUNXI
+    run_host_command_logged scripts/config --enable CONFIG_CMD_NAND
+    run_host_command_logged scripts/config --enable CONFIG_CMD_MTD
+
+    # No board LED is assumed; the current physical board has no visible indicator.
 }
 
 # Export the exact recovery U-Boot produced by this build.
