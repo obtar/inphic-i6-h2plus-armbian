@@ -12,8 +12,8 @@ Armbian/Linux and standalone Recovery U-Boot support for the Inphic H202A (Dolph
 | RAM | 512 MiB DDR3 |
 | Internal storage | eMMC, 8-bit, non-removable |
 | Ethernet | 100 Mbps |
-| Debug UART | UART0, PA4/PA5 |
-| LED | PA15 |
+| Debug UART | Not identified on the current bare board; UART0/PA4/PA5 remains the firmware candidate |
+| LED | No visible board indicator; PA15 is not assumed as a usable indicator |
 | RTC crystal | 32.768 kHz |
 | Wi-Fi | XR819 on the original board |
 | BootROM recovery | Allwinner FEL |
@@ -167,6 +167,8 @@ Write a complete image to the eMMC
 
 The Recovery U-Boot does not depend on a working Linux installation on the eMMC.
 
+The current physical test board is a bare, unlabelled board. No usable LED indicator or exposed/identified TTL UART header has been confirmed, so Ethernet NetConsole is treated as the primary interactive diagnostic path.
+
 ## Recovery U-Boot configuration
 
 ~~~text
@@ -179,18 +181,21 @@ DRAM ODT               = enabled
 MMC_SUNXI_SLOT_EXTRA   = 2
 ~~~
 
-Automatic UMS configuration:
+UMS is enabled but is **not** started automatically.
+
+The Recovery U-Boot starts an interactive prompt and prints:
 
 ~~~text
-CONFIG_AUTOBOOT=y
-CONFIG_USE_BOOTCOMMAND=y
-CONFIG_BOOTDELAY=0
-CONFIG_BOOTCOMMAND="ums 0 mmc 1"
+Recovery U-Boot ready - run: ums 0 mmc 1
 ~~~
 
-After FEL loads the Recovery U-Boot, it attempts to enter USB Mass Storage automatically.
+Run UMS manually when the host should receive the eMMC as a USB disk:
 
-BOOTDELAY=0 still allows a UART keypress to interrupt autoboot. This is different from U-Boot's -2 setting, which disables the autoboot abort check.
+~~~text
+ums 0 mmc 1
+~~~
+
+BOOTDELAY=0 runs the harmless default command immediately and returns to the interactive U-Boot prompt.
 
 ## eMMC numbering
 
@@ -275,20 +280,50 @@ The current build provides MMC flash support and uses U-Boot MMC device 1 as its
 
 Verify the actual device before destructive operations.
 
-## Network recovery
+## Network recovery / NetConsole
 
-The Recovery U-Boot also enables:
+The Recovery U-Boot uses a fixed recovery network:
+
+~~~text
+U-Boot client : 192.168.1.251/24
+TFTP server   : 192.168.1.250
+Gateway       : 192.168.1.1
+NetConsole    : 192.168.1.250:6666/UDP
+~~~
+
+NetConsole is enabled automatically during U-Boot preboot. Serial remains in the console multiplexer as a fallback:
+
+~~~text
+stdin=serial,nc
+stdout=serial,nc
+stderr=serial,nc
+~~~
+
+On the host, listen with the U-Boot NetConsole tool:
+
+~~~bash
+tools/netconsole 192.168.1.251
+~~~
+
+The build also enables:
 
 ~~~text
 DHCP
 Ping
-TFTP
+TFTP download
+TFTP upload (tftpput)
 Wget
 DNS
 TCP
 ~~~
 
-This permits network-assisted recovery without requiring a Linux root filesystem.
+TFTP upload example:
+
+~~~text
+tftpput ${loadaddr} ${filesize} ${serverip}:recovery.bin
+~~~
+
+The TFTP server at 192.168.1.250 must permit writes for uploads.
 
 # Recovery Build
 
@@ -396,7 +431,7 @@ Then safely disconnect the USB disk from the host before rebooting the board.
 
 # Serial Console
 
-UART0 is used for U-Boot and Linux debugging.
+UART0 at PA4/PA5 remains the current firmware candidate:
 
 ~~~text
 115200 baud
@@ -404,6 +439,10 @@ UART0 is used for U-Boot and Linux debugging.
 No parity
 1 stop bit
 ~~~
+
+However, the current physical board is unlabelled and no UART header/pins have been identified. Do not assume a visible serial connector exists.
+
+For current bring-up, use Ethernet NetConsole first.
 
 Useful U-Boot commands:
 
@@ -440,7 +479,7 @@ Implemented:
 - normal Armbian image build
 - standalone Recovery U-Boot build
 - FEL RAM boot
-- automatic eMMC UMS
+- manual eMMC UMS
 - USB DFU
 - USB Fastboot
 - network recovery commands
@@ -452,12 +491,13 @@ Not currently part of the Recovery U-Boot:
 - Reset-button-triggered recovery
 - persistent recovery boot selection
 - automatic repartitioning without host confirmation
+- automatic UMS startup
 - NAND UMS
 
 The recovery design intentionally starts with:
 
 ~~~text
-FEL → RAM U-Boot → eMMC UMS
+FEL → RAM U-Boot → NetConsole / manual UMS
 ~~~
 
 because this path does not depend on the existing eMMC software installation.
