@@ -78,7 +78,9 @@ function post_config_uboot_target__dolphin_p1_recovery_features() {
     run_host_command_logged scripts/config --enable CONFIG_FASTBOOT_MMC_BOOT_SUPPORT
     # Current U-Boot sunxi Kconfig maps MMC_SUNXI_SLOT_EXTRA=2 to Fastboot MMC 1.
     run_host_command_logged scripts/config --set-val CONFIG_FASTBOOT_FLASH_MMC_DEV "1"
+    run_host_command_logged scripts/config --set-val CONFIG_FASTBOOT_BUF_ADDR "0x42000000"
     run_host_command_logged scripts/config --set-val CONFIG_FASTBOOT_BUF_SIZE "0x10000000"
+    run_host_command_logged scripts/config --set-val CONFIG_FASTBOOT_USB_DEV "0"
 
     # Ethernet/network recovery.
     run_host_command_logged scripts/config --enable CONFIG_CMD_NET
