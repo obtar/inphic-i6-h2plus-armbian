@@ -126,11 +126,18 @@ jobs:
             Scheme 2 standalone recovery bootloader.
 
             Enabled recovery transports:
-            - USB Mass Storage (UMS)
+            - USB Mass Storage (UMS), manual command only
             - USB DFU for MMC/RAM
             - USB Fastboot with eMMC flash support
-            - DHCP / TFTP / Wget network download commands
-            - U-Boot LED framework
+            - Static Ethernet + TFTP download/upload
+            - U-Boot NetConsole auto-start
+            - DHCP / Wget / DNS network commands
+
+            Network defaults:
+            - U-Boot client: 192.168.1.251/24
+            - TFTP/NetConsole server: 192.168.1.250
+            - Gateway: 192.168.1.1
+            - NetConsole UDP destination: 6666
 
             Storage is selected explicitly at the U-Boot command line; this build does
             not assume that the Linux mmc numbering is identical to U-Boot numbering.
